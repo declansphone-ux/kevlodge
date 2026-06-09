@@ -1424,28 +1424,38 @@ function htmlToPdfBlob(html, filename) {
   }
 }
 
-function emailFinalReport(password, meetingName, recipients, note) {
+function emailFinalReport(password, meetingName, recipients, note, liveRows) {
   const lodge = getLodge();
   const real = String(lodge.adminPassword || '').trim();
   if (!real || String(password || '').trim() !== real) return { error: 'bad_password', message: 'Not authorised.' };
   try {
     const to = resolveRecipients(lodge, recipients);
     if (!to.length) return { error: 'no_recipients', message: 'No valid recipients selected.' };
-    const sheet = getSS().getSheetByName(RESPONSES_SHEET);
-    if (sheet.getFilter()) sheet.getFilter().remove();
-    const data = sheet.getDataRange().getValues();
-    const wantMeet = String(meetingName||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-    const rows = [];
-    for (let i = 1; i < data.length; i++) {
-      const r = data[i];
-      if (/cancel/i.test(String(r[19]))) continue;
-      if (/apolog/i.test(String(r[4]))) continue;
-      const haveMeet = String(r[3]||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-      if (haveMeet !== wantMeet) continue;
-      const isBacs = /bacs|bank|transfer/i.test(String(r[22]||''));
-      const paid = isBacs || /^y/i.test(String(r[26]||''));
-      const arrived = /^y/i.test(String(r[27]||''));
-      rows.push({ name: ((r[6]?r[6]+' ':'') + (r[7]||'') + ' ' + (r[8]||'')).trim(), surname: String(r[8]||''), paid: paid, arrived: arrived, pay: isBacs ? 'BACS' : String(r[22]||'') });
+
+    let rows = [];
+    if (liveRows && liveRows.length) {
+      // Use live data passed directly from the UI (reflects current checked state)
+      rows = liveRows.map(function(r) {
+        var nameParts = String(r.name||'').trim().split(' ');
+        return { name: r.name, surname: nameParts[nameParts.length-1]||'', paid: !!r.paid, arrived: !!r.arrived, pay: r.bacs ? 'BACS' : (r.paid ? 'Paid' : '') };
+      });
+    } else {
+      // Fallback: read from spreadsheet
+      const sheet = getSS().getSheetByName(RESPONSES_SHEET);
+      if (sheet.getFilter()) sheet.getFilter().remove();
+      const data = sheet.getDataRange().getValues();
+      const wantMeet = String(meetingName||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+      for (let i = 1; i < data.length; i++) {
+        const r = data[i];
+        if (/cancel/i.test(String(r[19]))) continue;
+        if (/apolog/i.test(String(r[4]))) continue;
+        const haveMeet = String(r[3]||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+        if (haveMeet !== wantMeet) continue;
+        const isBacs = /bacs|bank|transfer/i.test(String(r[22]||''));
+        const paid = isBacs || /^y/i.test(String(r[26]||''));
+        const arrived = /^y/i.test(String(r[27]||''));
+        rows.push({ name: ((r[6]?r[6]+' ':'') + (r[7]||'') + ' ' + (r[8]||'')).trim(), surname: String(r[8]||''), paid: paid, arrived: arrived, pay: isBacs ? 'BACS' : String(r[22]||'') });
+      }
     }
     rows.sort(function(a,b){return a.surname.localeCompare(b.surname);});
     const paidAttended = rows.filter(function(r){return r.paid && r.arrived;});
@@ -1467,8 +1477,8 @@ function emailFinalReport(password, meetingName, recipients, note) {
       + '<h1>' + esc_(lodge.name) + '</h1>'
       + '<div class="sub">Festive Board Attendance &amp; Payment Report &mdash; ' + esc_(meetingName) + '</div>'
       + '<div class="tot"><b>' + paidAttended.length + '</b> paid &amp; attended &middot; <b>' + outstanding.length + '</b> outstanding &middot; <b>' + rows.length + '</b> total</div>'
-      + '<h2>Paid &amp; Attended</h2><table><tr><th>Name</th><th>Paid</th><th>Arrived</th><th>Payment</th></tr>' + (tableRows(paidAttended)||'<tr><td colspan="4">None yet</td></tr>') + '</table>'
-      + '<h2>Outstanding</h2><table><tr><th>Name</th><th>Paid</th><th>Arrived</th><th>Payment</th></tr>' + (tableRows(outstanding)||'<tr><td colspan="4">None</td></tr>') + '</table>'
+      + '<h2>Paid &amp; Attended (' + paidAttended.length + ')</h2><table><tr><th>Name</th><th>Paid</th><th>Here</th><th>Payment</th></tr>' + (tableRows(paidAttended)||'<tr><td colspan="4">None yet</td></tr>') + '</table>'
+      + '<h2>Outstanding (' + outstanding.length + ')</h2><table><tr><th>Name</th><th>Paid</th><th>Here</th><th>Payment</th></tr>' + (tableRows(outstanding)||'<tr><td colspan="4">None</td></tr>') + '</table>'
       + (note ? '<p style="margin-top:14px;font-size:12px">'+esc_(note)+'</p>' : '')
       + '</body></html>';
     const blob = htmlToPdfBlob(html, 'Attendance_Report_' + String(meetingName).replace(/[^a-z0-9]+/gi,'_'));
