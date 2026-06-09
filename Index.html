@@ -1195,7 +1195,7 @@ html.theme-light .combo-option.selected{color:var(--crimson);}
     <div id="adminTablePlan" style="display:none">
       <button class="admin-back" onclick="adminBackToMenu()">&larr; Admin Area</button>
       <div style="text-align:center;padding:30px 10px">
-        <p style="font-size:15px;color:var(--text-secondary);max-width:440px;margin:0 auto 20px;line-height:1.5">Open the seating plan in a full-screen view. From there you can edit the layout (Table Admin password) and print it to a single page.</p>
+        <p style="font-size:15px;color:#7A5E12;max-width:440px;margin:0 auto 20px;line-height:1.5">Open the seating plan in a full-screen view. From there you can edit the layout (Table Admin password) and export it as a PDF.</p>
         <button class="conf-action-btn" style="font-size:16px;padding:14px 28px" onclick="tpOpenOverlay()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg> Open Table Plan</button>
       </div>
       <div style="text-align:center;margin-top:10px" class="no-print">
@@ -1221,7 +1221,7 @@ html.theme-light .combo-option.selected{color:var(--crimson);}
           <button class="tpov-btn" id="tpEditBtn" onclick="tpStartEdit()">Edit plan</button>
           <button class="tpov-btn primary" id="tpSaveBtn" style="display:none" onclick="tpSave()">Save</button>
           <button class="tpov-btn" id="tpCancelBtn" style="display:none" onclick="tpCancelEdit()">Cancel</button>
-          <button class="tpov-btn" onclick="tpPrint()">Print / PDF</button>
+          <button class="tpov-btn" onclick="tpPrint()">Export PDF</button>
         </div>
       </div>
       <div class="tp2-body">
@@ -2090,7 +2090,37 @@ function tpSave(){
   var byName={};for(var seat in _tp2.placement){var p=tp2PersonById(_tp2.placement[seat]);if(p)byName[seat]=p.full||p.name;}
   google.script.run.withSuccessHandler(function(r){btn.textContent='Save';btn.disabled=false;if(r&&r.success){tp2ExitEdit();}else{alert((r&&r.message)||'Could not save.');}}).withFailureHandler(function(){btn.textContent='Save';btn.disabled=false;alert('Could not connect to save.');}).saveTablePlan(_tp2.pw,mname,{top:_tp2.topCount,legs:_tp2.legCount,pairs:_tp2.pairCount,placement:byName});
 }
-function tpPrint(){var ps=document.createElement('style');ps.id='tpPageStyle';ps.textContent='@page{size:A4 portrait;margin:12mm}';document.head.appendChild(ps);document.body.classList.add('printing-plan');window.print();setTimeout(function(){document.body.classList.remove('printing-plan');var s=document.getElementById('tpPageStyle');if(s)s.remove();},700);}
+function tpPrint(){
+  var btn=document.querySelector('.tpov-bar-right .tpov-btn:last-child');
+  if(btn){btn.textContent='Generating PDF…';btn.disabled=true;}
+  function doExport(){
+    var sheet=document.getElementById('tpSheet');
+    var origTransform=sheet.style.transform;sheet.style.transform='none';
+    html2canvas(sheet,{scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',logging:false,width:sheet.scrollWidth,height:sheet.scrollHeight,windowWidth:sheet.scrollWidth,windowHeight:sheet.scrollHeight}).then(function(canvas){
+      sheet.style.transform=origTransform;
+      var imgData=canvas.toDataURL('image/jpeg',0.97);
+      var pdf=new jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
+      var pW=pdf.internal.pageSize.getWidth();var pH=pdf.internal.pageSize.getHeight();
+      var margin=8;var aW=pW-margin*2;var aH=pH-margin*2;
+      var cW=canvas.width/2;var cH=canvas.height/2;
+      var scale=Math.min(aW/cW,aH/cH,1);
+      var iW=cW*scale;var iH=cH*scale;
+      var x=margin+(aW-iW)/2;var y=margin+(aH-iH)/2;
+      pdf.addImage(imgData,'JPEG',x,y,iW,iH,undefined,'FAST');
+      var lodgeName=((_adminData&&_adminData.lodge&&_adminData.lodge.name)||'Table Plan').replace(/[^a-z0-9 ]/gi,'').trim();
+      pdf.save(lodgeName+' – Table Plan.pdf');
+      if(btn){btn.textContent='Export PDF';btn.disabled=false;}
+    }).catch(function(){sheet.style.transform=origTransform;if(btn){btn.textContent='Export PDF';btn.disabled=false;}alert('Could not generate PDF. Try again.');});
+  }
+  if(window.html2canvas&&window.jspdf){doExport();return;}
+  var s1=document.createElement('script');s1.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  s1.onerror=function(){if(btn){btn.textContent='Export PDF';btn.disabled=false;}alert('Could not load PDF library. Check your internet connection.');};
+  s1.onload=function(){
+    var s2=document.createElement('script');s2.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s2.onerror=function(){if(btn){btn.textContent='Export PDF';btn.disabled=false;}alert('Could not load PDF library. Check your internet connection.');};
+    s2.onload=doExport;document.head.appendChild(s2);
+  };document.head.appendChild(s1);
+}
 function tp2UpdateToolbar(editing){
   var ids={tpEditBtn:editing?'none':'inline-flex',tpSaveBtn:editing?'inline-flex':'none',tpCancelBtn:editing?'inline-flex':'none',tpEditControls:editing?'inline-flex':'none',tp2Sidebar:editing?'flex':'none',tpEditBadge:editing?'inline-block':'none'};
   for(var id in ids){var el=document.getElementById(id);if(el)el.style.display=ids[id];}
