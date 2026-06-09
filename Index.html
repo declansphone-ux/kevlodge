@@ -681,7 +681,7 @@ html.theme-light .combo-option.selected{color:var(--crimson);}
 .tc-deco-dia{width:1.8mm;height:1.8mm;background:#1F3C6E;transform:rotate(45deg)}
 .tc-frontspacer{flex:1}
 .tc-nm{font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;font-weight:600;font-size:clamp(16px,4.2vw,28px);color:#1a1d22;line-height:1.1;word-break:break-word;overflow-wrap:break-word;max-width:100%;overflow:hidden}
-.tc-rk{font-family:Georgia,serif;font-size:10.5px;color:#1F3C6E;margin-top:2.5mm;letter-spacing:2.5px;text-transform:uppercase;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tc-rk{font-family:Georgia,serif;font-size:10.5px;color:#1F3C6E;margin-top:2.5mm;letter-spacing:2.5px;text-transform:uppercase;max-width:100%;overflow:hidden;word-break:break-word;white-space:normal;line-height:1.4}
 .tc-diet{margin-top:3.5mm;display:flex;gap:2mm;justify-content:center}
 .tc-roundel{width:6mm;height:6mm;border:0.8px solid #1F3C6E;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:10px;color:#1F3C6E}
 /* BACK (upside-down so it reads when folded) - name is the hero, QR smaller below */
@@ -2552,9 +2552,10 @@ function arrSendReport(){
   var mname=(_adminData.meeting&&_adminData.meeting.dateName)||'';
   var rec={steward:document.getElementById('frSteward').checked,dc:document.getElementById('frDC').checked,secretary:document.getElementById('frSec').checked,extra:document.getElementById('frExtra').value};
   var msg=document.getElementById('frMsg');msg.textContent='Sending\u2026';
+  var liveRows=(_arr&&_arr.people||[]).map(function(p){return {name:p.name,sub:p.sub||'',paid:!!p.paid,arrived:!!p.arrived,bacs:!!p.bacs};});
   google.script.run.withSuccessHandler(function(r){
     msg.textContent=r&&r.success?('Report sent to '+r.sent+' recipient(s): '+r.paidAttended+' paid & attended of '+r.total+'.'):((r&&r.message)||'Could not send.');
-  }).withFailureHandler(function(){msg.textContent='Could not connect to send.';}).emailFinalReport(_adminPw,mname,rec,'');
+  }).withFailureHandler(function(){msg.textContent='Could not connect to send.';}).emailFinalReport(_adminPw,mname,rec,'',liveRows);
 }
 
 /* ===================== MAINTENANCE / PURGE ===================== */
